@@ -22,27 +22,30 @@ export default function () {
   const avgSamplingPoint = React.useRef([]);
   const [left, setLeft] = React.useState(30);
   const [right, setRight] = React.useState(50);
-  const [std, setStd] = React.useState(1);
-  const [stdErr, setStdErr] = React.useState(0);
-  const [variance, setVariance] = React.useState(1);
-  const [mean, setMean] = React.useState(left + (right - left) / 2);
-  const [normalLeftValue, setNormalLeftValue] = React.useState(left);
-  const [samplingLeftValue, setSamplingLeftValue] = React.useState(left);
-  const [tLeftValue, setTLeftValue] = React.useState(-10);
-  const [tValue, setTValue] = React.useState(0);
-  const [samplingNumber, setSamplingNumber] = React.useState(3);
-  const [avgSamplingNumber, setAvgSamplingNumber] = React.useState(0);
-  const [showDistribution, setShowDistribution] = React.useState(false);
-  const [showSamplingDistribution, setShowSamplingDistribution] = React.useState(true);
-  const [showTDistribution, setShowTDistribution] = React.useState(false);
-  const [showPaintDistribution, setShowPaintDistribution] = React.useState(false);
-  const [showNormalCumulative, setShowNormalCumulative] = React.useState(false);
-  const [showSamplingCumulative, setShowSamplingCumulative] = React.useState(true);
-  const [showTValueCumulative, setShowTValueCumulative] = React.useState(false);
-  const [showBoth, setShowBoth] = React.useState(true);
+
+  const [state, setState] = React.useState({
+    showDistribution: false,
+    showSamplingDistribution: false,
+    showTDistribution: true,
+    showPaintDistribution: false,
+    showNormalCumulative: false,
+    showSamplingCumulative: false,
+    showTValueCumulative: true,
+    normalLeftValue: left,
+    samplingLeftValue: left,
+    tLeftValue: -10,
+    mean: left + (right - left) / 2,
+    variance: 1,
+    std: 1,
+    samplingNumber: 3,
+    showBoth: false,
+    enableMeanOffset: false,
+    avgSamplingNumber: 0,
+    stdErr: 0,
+    enableMeanZero: false,
+  })
+
   const [percentFix, setPercentFix] = React.useState(false);
-  const [enableMeanOffset, setEnableMeanOffset] = React.useState(false);
-  const [enableMeanZero, setEnableMeanZero] = React.useState(false);
   const [sampleValues, setSampleValues] = React.useState(Stat.calcParams([0]));
   const [normalPercent, setNormalPercent] = React.useState(0);
   const [samplingPercent, setSamplingPercent] = React.useState(0);
@@ -62,22 +65,30 @@ export default function () {
       chartData.current,
       chartOptions.current,
     );
-    // doSampling();
     updateChart();
   }, []);
 
   React.useEffect(() => {
-    setStdErr(std / Math.sqrt(samplingNumber));
-  }, [std, samplingNumber]);
+    setState({
+      ...state,
+      stdErr: state.std / Math.sqrt(state.samplingNumber),
+    });
+  }, [state.std, state.samplingNumber]);
 
   React.useEffect(() => {
-    setStd(Math.sqrt(variance));
-  }, [variance]);
+    setState({
+      ...state,
+      std: Math.sqrt(state.variance),
+    });
+  }, [state.variance]);
 
   React.useEffect(() => {
-    setMean(left + (right - left) / 2);
-    setNormalLeftValue(left);
-    setSamplingLeftValue(left);
+    setState({
+      ...state,
+      mean: left + (right - left) / 2,
+      normalLeftValue: left,
+      samplingLeftValue: left,
+    })
     chartOptions.current.xmin = left;
     chartOptions.current.xmax = right;
     chart.current = PlotChart.Chart(
@@ -91,10 +102,7 @@ export default function () {
   React.useEffect(() => {
     updateChart();
   }, [
-    showDistribution, showSamplingDistribution, showTDistribution,
-    showPaintDistribution, showNormalCumulative, showSamplingCumulative,
-    normalLeftValue, samplingLeftValue, tLeftValue, showTValueCumulative,
-    mean, std, samplingNumber, showBoth, enableMeanOffset, avgSamplingNumber, stdErr,
+    state,
   ]);
 
   const get_random_samples = (n) => {
@@ -104,7 +112,7 @@ export default function () {
     avgSamplingPoint.current = [];
     for (var i=0;i<n;i++) {
       const t = [];
-      for (var j=0;j<samplingNumber;j++) {
+      for (var j=0;j<state.samplingNumber;j++) {
         const idx = getRandomInt(200);
         t.push(samplingPoint.current[idx]);
       }
@@ -117,7 +125,7 @@ export default function () {
 
   const doSampling = () => {
     samplingPoint.current = [];
-    R.rnorm(200, mean, std).forEach( v => {
+    R.rnorm(200, state.mean, state.std).forEach( v => {
       samplingPoint.current.push(v);
     });
     get_random_samples(200);
@@ -126,7 +134,10 @@ export default function () {
 
   const doResetSampling = () => {
     samplingPoint.current = [];
-    setAvgSamplingNumber(0);
+    setState({
+      ...state,
+       avgSamplingNumber: 0,
+    });
     updateChart();
   }
 
@@ -136,16 +147,19 @@ export default function () {
     var nx = 100;
 
     if (percentFix) {
-      setNormalLeftValue(R.qnorm(normalPercent, mean, std));
-      setSamplingLeftValue(R.qnorm(samplingPercent, mean, stdErr));
-      setTLeftValue(R.pt(tValuePercent, samplingNumber - 1));
+      setState({
+        ...state,
+        normalLeftValue: R.qnorm(normalPercent, state.mean, state.std),
+        samplingLeftValue: R.qnorm(samplingPercent, state.mean, state.stdErr),
+        tLeftValue: R.qt(tValuePercent, state.samplingNumber - 1),
+      })
     }
 
     function calc_normal_distribution() {
       var data = [];
       for (let i = 0; i < nx + 1; i++) {
         var x = (xmin + (xmax - xmin) / nx * i);
-        var y = R.dnorm(x, mean, std);
+        var y = R.dnorm(x, state.mean, state.std);
         data.push({ x: x, y: y });
       }
       return data;
@@ -158,11 +172,11 @@ export default function () {
       borderColor: chartColors.red,
       yAxisID: 'y-axis-1',
       pointRadius: 0,
-      fill: showPaintDistribution,
+      fill: state.showPaintDistribution,
     }
 
     const get_samples = () => {
-      const t = samplingPoint.current.slice(0, samplingNumber).map(v => {
+      const t = samplingPoint.current.slice(0, state.samplingNumber).map(v => {
         return {
           x: v, y: 20,
           r: 4,
@@ -173,17 +187,17 @@ export default function () {
 
     var samples = get_samples();
     var avg = samples.reduce((a, c) => a + c.x, 0) / samples.length;
-    var params = Stat.calcParams(samplingPoint.current.slice(0, samplingNumber));
-    const tvalue = params.stderr>0?(params.mean - mean) / params.stderr:0;
-    setTValue(tvalue);
+    var params = Stat.calcParams(samplingPoint.current.slice(0, state.samplingNumber));
+    const tValue = params.stderr>0?(params.mean - state.mean) / params.stderr:0;
+    setState({ ...state, tValue });
     setSampleValues(params);
 
-    var alpha = 0.6 / samplingNumber;
+    var alpha = 0.6 / state.samplingNumber;
     if (alpha < 0.05) alpha = 0.05;
 
     var dataSet2 = {
       type: 'point',
-      data: avgSamplingNumber==0?samples:[],
+      data: state.avgSamplingNumber==0?samples:[],
       backgroundColor: color('blue').alpha(alpha * 2).rgbString(),
       borderColor: color('blue').alpha(alpha * 5).rgbString(),
       yAxisID: 'y-axis-2',
@@ -191,7 +205,7 @@ export default function () {
 
     const avg_samples = [
       { x: avg, y: 40, r: 4, },
-      ...avgSamplingPoint.current.slice(0, avgSamplingNumber),
+      ...avgSamplingPoint.current.slice(0, state.avgSamplingNumber),
     ];
 
     var alpha = 0.6 / avg_samples.length;
@@ -206,11 +220,11 @@ export default function () {
     }
 
     var areaData = [
-      { x: normalLeftValue, y: 0, r: 0 },
+      { x: state.normalLeftValue, y: 0, r: 0 },
     ];
 
-    if (showBoth) {
-      areaData.push({ x: xmax-(normalLeftValue-xmin)-((xmax+xmin)/2-mean)*2, y: 0, r: 100 });
+    if (state.showBoth) {
+      areaData.push({ x: state.mean*2-state.normalLeftValue, y: 0, r: 100 });
     }
 
     var dataSet3 = {
@@ -222,11 +236,11 @@ export default function () {
     }
 
     var areaData_A = [
-      { x: samplingLeftValue-((xmax+xmin)/2-mean), y: 0, r: 0 },
+      { x: state.samplingLeftValue+(state.enableMeanOffset?params.enableMeanOffset-state.mean:0), y: 0, r: 0 },
     ];
 
-    if (showBoth) {
-      areaData_A.push({ x: xmax-(setSamplingLeftValue-xmin)-((xmax+xmin)/2-mean), y: 0, r: 100 });
+    if (state.showBoth) {
+      areaData_A.push({ x: (state.enableMeanOffset?params.mean:state.mean)*2-(state.samplingLeftValue+(state.enableMeanOffset?params.mean-state.mean:0)), y: 0, r: 100 });
     }
 
     var dataSet3_A = {
@@ -241,7 +255,7 @@ export default function () {
       var data = [];
       for (let i = 0; i < nx + 1; i++) {
         var x = (xmin + (xmax - xmin) / nx * i);
-        var y = R.dnorm(x, (enableMeanOffset?params.mean-mean:0)+mean, stdErr);
+        var y = R.dnorm(x, (state.enableMeanOffset?params.mean-state.mean:0)+state.mean, state.stdErr);
         data.push({ x: x, y: y });
       }
       return data;
@@ -254,15 +268,15 @@ export default function () {
       borderColor: chartColors.green,
       yAxisID: 'y-axis-1',
       pointRadius: 0,
-      fill: showPaintDistribution,
+      fill: state.showPaintDistribution,
     }
 
     function calc_func_t_distribution() {
       var data = [];
       for (let i = 0; i < nx + 1; i++) {
-        var x = (xmin + (xmax - xmin) / nx * i)-mean;
-        var y = R.dt(x, samplingNumber - 1);
-        data.push({ x: x+(enableMeanOffset?params.mean-mean:0)+mean, y: y });
+        var x = (xmin + (xmax - xmin) / nx * i)-state.mean;
+        var y = R.dt(x, state.samplingNumber - 1);
+        data.push({ x: x+(state.enableMeanOffset?params.mean-state.mean:0)+state.mean, y: y });
       }
       return data;
     }
@@ -274,15 +288,17 @@ export default function () {
       borderColor: chartColors.orange,
       yAxisID: 'y-axis-1',
       pointRadius: 0,
-      fill: showPaintDistribution,
+      fill: state.showPaintDistribution,
     }
 
+    var tErr = params.stderr==0?1:params.stderr;
+
     var areaData_T = [
-      { x: tLeftValue*params.stderr+(enableMeanOffset?params.mean-mean:0)+mean, y: 0, r: 0 },
+      { x: state.tLeftValue*tErr+state.mean+(state.enableMeanOffset?params.mean-state.mean:0), y: 0, r: 0 },
     ];
 
-    if (showBoth) {
-      areaData_T.push({ x: -tLeftValue*params.stderr+(enableMeanOffset?params.mean-mean:0)+mean, y: 0, r: 100 });
+    if (state.showBoth) {
+      areaData_T.push({ x: -state.tLeftValue*tErr+state.mean+(state.enableMeanOffset?params.mean-state.mean:0), y: 0, r: 100 })
     }
 
     var dataSet3_T = {
@@ -297,24 +313,25 @@ export default function () {
 
     chartData.current.push(dataSet2_A);
     chartData.current.push(dataSet2);
-    if (showDistribution) {
+    if (state.showDistribution) {
       chartData.current.push(dataSet1);
     }
-    if (showSamplingDistribution) {
+    if (state.showSamplingDistribution) {
       chartData.current.push(dataSet4);
     }
-    if (showTDistribution) {
+    if (state.showTDistribution) {
       chartData.current.push(dataSet5);
     }
-    if (showNormalCumulative) {
+    if (state.showNormalCumulative) {
       chartData.current.push(dataSet3);
     }
-    if (showSamplingCumulative) {
+    if (state.showSamplingCumulative) {
       chartData.current.push(dataSet3_A);
     }
-    if (showTValueCumulative) {
+    if (state.showTValueCumulative) {
       chartData.current.push(dataSet3_T);
     }
+
     chart.current.update();
   }
 
@@ -324,9 +341,9 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showDistribution}
+          checked={state.showDistribution}
           onChange={(e) => {
-            setShowDistribution(e.target.checked)
+            setState({ ...state, showDistribution: e.target.checked });
           }}
         />
         <div className="inline-block">:母集団分布</div>
@@ -334,9 +351,9 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showSamplingDistribution}
+          checked={state.showSamplingDistribution}
           onChange={(e) => {
-            setShowSamplingDistribution(e.target.checked)
+            setState({ ...state, showSamplingDistribution: e.target.checked });
           }}
         />
         <div className="inline-block">:標本平均の分布</div>
@@ -344,9 +361,9 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showTDistribution}
+          checked={state.showTDistribution}
           onChange={(e) => {
-            setShowTDistribution(e.target.checked)
+            setState({ ...state, showTDistribution: e.target.checked });
           }}
         />
         <div className="inline-block">:t分布</div>
@@ -354,9 +371,9 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showPaintDistribution}
+          checked={state.showPaintDistribution}
           onChange={(e) => {
-            setShowPaintDistribution(e.target.checked)
+            setState({ ...state, showPaintDistribution: e.target.checked });
           }}
         />
         <div className="inline-block">:塗り潰し</div>
@@ -364,9 +381,9 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={enableMeanOffset}
+          checked={state.enableMeanOffset}
           onChange={(e) => {
-            setEnableMeanOffset(e.target.checked)
+            setState({ ...state, enableMeanOffset: e.target.checked })
           }}
         />
         <div className="inline-block">:平均補正</div>
@@ -374,7 +391,7 @@ export default function () {
       <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={enableMeanZero}
+          checked={state.enableMeanZero}
           onChange={(e) => {
             if (e.target.checked) {
               setLeft(-10);
@@ -383,53 +400,68 @@ export default function () {
               setLeft(30);
               setRight(50);
             }
-            setEnableMeanZero(e.target.checked)
+            setState({
+              ...state,
+              enableMeanZero: e.target.checked,
+            })
           }}
         />
         <div className="inline-block">:0平均化</div>
       </div>
       <div>
-        <div className="inline-block w-1/3">母平均:{mean}</div>
+        <div className="inline-block w-1/3">母平均:{state.mean}</div>
         <input
-          value={mean} type="range"
+          value={state.mean} type="range"
           min={chartOptions.current.xmin}
           max={chartOptions.current.xmax}
           step="0.1"
           onChange={(e) => {
-            setMean(parseFloat(e.target.value));
+            setState({
+              ...state,
+              mean: parseFloat(e.target.value),
+            })
           }}
         />
       </div>
       <div>
-        <div className="inline-block w-1/3">母分散:{variance}</div>
+        <div className="inline-block w-1/3">母分散:{state.variance}</div>
         <input
-          value={variance}
+          value={state.variance}
           type="range"
           min="0.1"
           max="3"
           step="0.1"
           onChange={(e) => {
-            setVariance(parseFloat(e.target.value));
+            setState({
+              ...state,
+              variance: parseFloat(e.target.value),
+            })
           }}
         />
       </div>
       <div>
-        <div className="inline-block w-1/3">サンプリング数:{samplingNumber}</div>
+        <div className="inline-block w-1/3">サンプリング数:{state.samplingNumber}</div>
         <input
-          value={samplingNumber} type="range" min="3" max="200" step="1"
+          value={state.samplingNumber} type="range" min="3" max="200" step="1"
           onChange={(e) => {
-            setSamplingNumber(e.target.value);
+            setState({
+              ...state,
+              samplingNumber: parseInt(e.target.value),
+            })
           }}
         />
         <input type="button" value="サンプリング" onClick={doSampling} />
         <input type="button" value="リセット" onClick={doResetSampling} />
       </div>
       <div>
-        <div className="inline-block w-1/3">標本平均の個数:{avgSamplingNumber+1}</div>
+        <div className="inline-block w-1/3">標本平均の個数:{state.avgSamplingNumber+1}</div>
         <input
-          value={avgSamplingNumber} type="range" min="0" max="99" step="1"
+          value={state.avgSamplingNumber} type="range" min="0" max="99" step="1"
           onChange={(e) => {
-            setAvgSamplingNumber(parseInt(e.target.value));
+            setState({
+              ...state,
+              avgSamplingNumber: parseInt(e.target.value),
+            })
           }}
         />
       </div>
@@ -443,7 +475,7 @@ export default function () {
         <div className="inline-block w-1/3">標準誤差:{Stat.round(sampleValues.stderr)}</div>
       </div>
       <div>
-        <div className="inline-block w-1/3">t値:{Stat.round(tValue)}</div>
+        <div className="inline-block w-1/3">t値:{Stat.round(state.tValue)}</div>
       </div>
 
       <div>累積分布</div>
@@ -452,9 +484,12 @@ export default function () {
         <div className="inline-block w-1/3">
           <input
             type="checkbox"
-            checked={showBoth}
+            checked={state.showBoth}
             onChange={(e) => {
-              setShowBoth(e.target.checked)
+              setState({
+                ...state,
+                showBoth: e.target.checked,
+              })
             }}
           />
           <div className="inline-block">:両側表示</div>
@@ -465,9 +500,9 @@ export default function () {
             checked={percentFix}
             onChange={(e) => {
               if (e.target.checked) {
-                setNormalPercent(Stat.round(R.pnorm(normalLeftValue, mean, std)));
-                setSamplingPercent(Stat.round(R.pnorm(samplingLeftValue, mean, std/(samplingNumber-1))));
-                setTValuePercent(Stat.round(R.pt(tLeftValue, samplingNumber-1)));
+                setNormalPercent(Stat.round(R.pnorm(state.normalLeftValue, state.mean, state.std)));
+                setSamplingPercent(Stat.round(R.pnorm(state.samplingLeftValue, state.mean, state.stdErr)));
+                setTValuePercent(Stat.round(R.pt(state.tLeftValue, state.samplingNumber-1)));
               }
               setPercentFix(e.target.checked)
             }}
@@ -480,39 +515,57 @@ export default function () {
         <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showNormalCumulative}
+          checked={state.showNormalCumulative}
           onChange={(e) => {
-            setShowNormalCumulative(e.target.checked)
+            setState({ ...state, showNormalCumulative: e.target.checked });
           }}
         />
-        <div className="inline-block">:母分布:{Stat.round(normalLeftValue)}/{Stat.round(R.pnorm(normalLeftValue, mean, std)*100)}%</div>
+        <div className="inline-block">:母分布:{Stat.round(state.normalLeftValue)}/{Stat.round(R.pnorm(state.normalLeftValue, state.mean, state.std)*100)}%</div>
         </div>
         <div className="inline-block">
           <input
-            value={normalLeftValue}
+            value={state.normalLeftValue}
             type="range"
             min={chartOptions.current.xmin}
             max={chartOptions.current.xmax}
             step="0.05"
             disabled={percentFix}
             onChange={(e) => {
-              setNormalLeftValue(parseFloat(e.target.value));
+              setState({
+                ...state,
+                normalLeftValue: parseFloat(e.target.value),
+              })
             }}
           />
           <input type="button" value="0.5%点" onClick={() => {
-            setNormalLeftValue(R.qnorm(0.005, mean, std));
+            setState({
+              ...state,
+              normalLeftValue: R.qnorm(0.005, state.mean, state.std),
+            })
           }} />
           <input type="button" value="1.0%点" onClick={() => {
-            setNormalLeftValue(R.qnorm(0.01, mean, std));
+            setState({
+              ...state,
+              normalLeftValue: R.qnorm(0.001, state.mean, state.std),
+            })
           }} />
           <input type="button" value="2.5%点" onClick={() => {
-            setNormalLeftValue(R.qnorm(0.025, mean, std));
+            setState({
+              ...state,
+              normalLeftValue: R.qnorm(0.025, state.mean, state.std),
+            })
           }} />
           <input type="button" value="5%点" onClick={() => {
-            setNormalLeftValue(R.qnorm(0.05, mean, std));
+            setState({
+              ...state,
+              normalLeftValue: R.qnorm(0.05, state.mean, state.std),
+            })
           }} />
           <input type="button" value="25%点" onClick={() => {
-            setNormalLeftValue(R.qnorm(0.25, mean, std));
+            setState({
+              ...state,
+              normalLeftValue: R.qnorm(0.25, state.mean, state.std),
+            })
           }} />
         </div>
       </div>
@@ -521,40 +574,58 @@ export default function () {
         <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showSamplingCumulative}
+          checked={state.showSamplingCumulative}
           onChange={(e) => {
-            setShowSamplingCumulative(e.target.checked)
+            setState({ ...state, showSamplingCumulative: e.target.checked });
           }}
         />
-        <div className="inline-block">:標本分布:{Stat.round(samplingLeftValue)}/{Stat.round(R.pnorm(samplingLeftValue, mean, stdErr)*100)}%</div>
+        <div className="inline-block">:標本分布:{Stat.round(state.samplingLeftValue)}/{Stat.round(R.pnorm(state.samplingLeftValue, state.mean, state.stdErr)*100)}%</div>
         </div>
         <div className="inline-block">
           <input
-            value={samplingLeftValue}
+            value={state.samplingLeftValue}
             type="range"
             min={chartOptions.current.xmin}
             max={chartOptions.current.xmax}
             step="0.05"
             disabled={percentFix}
             onChange={(e) => {
-              setSamplingLeftValue(parseFloat(e.target.value));
+              setState({
+                ...state,
+                samplingLeftValue: parseFloat(e.target.value),
+              })
             }}
           />
           <input type="button" value="0.5%点" onClick={() => {
-            setSamplingLeftValue(R.qnorm(0.005, mean, stdErr));
+            setState({
+              ...state,
+              samplingLeftValue: R.qnorm(0.005, state.mean, state.stdErr),
+            })
           }} />
           <input type="button" value="1.0%点" onClick={() => {
-            setSamplingLeftValue(R.qnorm(0.01, mean, stdErr));
+            setState({
+              ...state,
+              samplingLeftValue: R.qnorm(0.001, state.mean, state.stdErr),
+            })
           }} />
           <input type="button" value="2.5%点" onClick={() => {
-            setSamplingLeftValue(R.qnorm(0.025, mean, stdErr));
+            setState({
+              ...state,
+              samplingLeftValue: R.qnorm(0.025, state.mean, state.stdErr),
+            })
           }} />
           <input type="button" value="5%点" onClick={() => {
-            setSamplingLeftValue(R.qnorm(0.05, mean, stdErr));
+            setState({
+              ...state,
+              samplingLeftValue: R.qnorm(0.05, state.mean, state.stdErr),
+            })
           }} />
           <input type="button" value="25%点" onClick={() => {
-            setSamplingLeftValue(R.qnorm(0.25, mean, stdErr));
-          }} />
+             setState({
+              ...state,
+              samplingLeftValue: R.qnorm(0.25, state.mean, state.stdErr),
+            })
+         }} />
         </div>
       </div>
 
@@ -562,39 +633,57 @@ export default function () {
         <div className="inline-block w-1/3">
         <input
           type="checkbox"
-          checked={showTValueCumulative}
+          checked={state.showTValueCumulative}
           onChange={(e) => {
-            setShowTValueCumulative(e.target.checked)
+            setState({ ...state, showTValueCumulative: e.target.checked });
           }}
         />
-        <div className="inline-block">:t分布:{Stat.round(tLeftValue)}/{Stat.round(R.pt(tLeftValue, samplingNumber-1)*100)}%</div>
+        <div className="inline-block">:t分布:{Stat.round(state.tLeftValue)}/{Stat.round(R.pt(state.tLeftValue, state.samplingNumber-1)*100)}%</div>
         </div>
         <div className="inline-block">
           <input
-            value={tLeftValue}
+            value={state.tLeftValue}
             type="range"
             min={-10}
             max={ 10}
             step="0.05"
             disabled={percentFix}
             onChange={(e) => {
-              setTLeftValue(parseFloat(e.target.value));
+              setState({
+                ...state,
+                tLeftValue: parseFloat(e.target.value),
+              })
             }}
           />
           <input type="button" value="0.5%点" onClick={() => {
-            setTLeftValue(R.qt(0.005, samplingNumber - 1))
+            setState({
+              ...state,
+              tLeftValue: R.qt(0.005, state.samplingNumber - 1),
+            })
           }} />
           <input type="button" value="1.0%点" onClick={() => {
-            setTLeftValue(R.qt(0.01, samplingNumber - 1));
+            setState({
+              ...state,
+              tLeftValue: R.qt(0.001, state.samplingNumber - 1),
+            })
           }} />
           <input type="button" value="2.5%点" onClick={() => {
-            setTLeftValue(R.qt(0.025, samplingNumber - 1))
+            setState({
+              ...state,
+              tLeftValue: R.qt(0.025, state.samplingNumber - 1),
+            })
           }} />
           <input type="button" value="5%点" onClick={() => {
-            setTLeftValue(R.qt(0.05, samplingNumber - 1))
+            setState({
+              ...state,
+              tLeftValue: R.qt(0.05, state.samplingNumber - 1),
+            })
           }} />
           <input type="button" value="25%点" onClick={() => {
-            setTLeftValue(R.qt(0.25, samplingNumber - 1))
+            setState({
+              ...state,
+              tLeftValue: R.qt(0.25, state.samplingNumber - 1),
+            })
           }} />
         </div>
       </div>
