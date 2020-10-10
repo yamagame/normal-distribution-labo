@@ -20,17 +20,17 @@ export default function () {
   const chart = React.useRef(null);
   const samplingPoint = React.useRef([]);
   const avgSamplingPoint = React.useRef([]);
-  const [left, setLeft] = React.useState(30);
-  const [right, setRight] = React.useState(50);
+  const [left, setLeft] = React.useState(35);
+  const [right, setRight] = React.useState(45);
 
-  const [state, setState] = React.useState({
+  const [state, setStateHook] = React.useState({
     showDistribution: false,
     showSamplingDistribution: false,
-    showTDistribution: true,
+    showTDistribution: false,
     showPaintDistribution: false,
     showNormalCumulative: false,
     showSamplingCumulative: false,
-    showTValueCumulative: true,
+    showTValueCumulative: false,
     normalLeftValue: left,
     samplingLeftValue: left,
     tLeftValue: -10,
@@ -41,12 +41,18 @@ export default function () {
     showBoth: false,
     enableMeanOffset: false,
     avgSamplingNumber: 0,
-    stdErr: 0,
+    stdErr: 1 / Math.sqrt(3),
     enableMeanZero: false,
+    tValue: 0,
   })
+
+  const setState = (s) => {
+    setStateHook(s);
+  }
 
   const [percentFix, setPercentFix] = React.useState(false);
   const [sampleValues, setSampleValues] = React.useState(Stat.calcParams([0]));
+  const [percent, setPercent] = React.useState(0);
   const [normalPercent, setNormalPercent] = React.useState(0);
   const [samplingPercent, setSamplingPercent] = React.useState(0);
   const [tValuePercent, setTValuePercent] = React.useState(0);
@@ -68,12 +74,43 @@ export default function () {
     updateChart();
   }, []);
 
+  const updateParams = () => {
+    var params = Stat.calcParams(samplingPoint.current.slice(0, state.samplingNumber));
+    const tValue = params.stderr>0?(params.mean - state.mean) / params.stderr:0;
+    params.tValue = tValue;
+    setSampleValues(params);
+    return params;
+  }
+
   React.useEffect(() => {
-    setState({
-      ...state,
-      stdErr: state.std / Math.sqrt(state.samplingNumber),
-    });
-  }, [state.std, state.samplingNumber]);
+    var params = Stat.calcParams(samplingPoint.current.slice(0, state.samplingNumber));
+    const tValue = params.stderr>0?(params.mean - state.mean) / params.stderr:0;
+    if (percentFix) {
+      const s = {
+        ...state,
+        normalLeftValue: R.qnorm(percent, state.mean, state.std),
+        samplingLeftValue: R.qnorm(percent, state.mean, state.stdErr),
+        tLeftValue: R.qt(percent, state.samplingNumber - 1),
+        tValue,
+        stdErr: state.std / Math.sqrt(state.samplingNumber),
+      }
+      setState(s)
+    } else {
+      setState({
+        ...state,
+        stdErr: state.std / Math.sqrt(state.samplingNumber),
+        tValue,
+      });
+    }
+    updateParams();
+  }, [
+    percentFix, 
+    state.mean,
+    state.std,
+    state.stdErr,
+    state.samplingNumber,
+    percent,
+  ]);
 
   React.useEffect(() => {
     setState({
@@ -129,14 +166,21 @@ export default function () {
       samplingPoint.current.push(v);
     });
     get_random_samples(200);
+    const params = updateParams();
+    setState({
+      ...state,
+      tValue: params.tValue,
+    });
     updateChart();
   }
 
   const doResetSampling = () => {
     samplingPoint.current = [];
+    const params = updateParams();
     setState({
       ...state,
-       avgSamplingNumber: 0,
+      avgSamplingNumber: 0,
+      tValue: params.tValue,
     });
     updateChart();
   }
@@ -145,15 +189,6 @@ export default function () {
     var xmin = chartOptions.current.xmin;
     var xmax = chartOptions.current.xmax;
     var nx = 100;
-
-    if (percentFix) {
-      setState({
-        ...state,
-        normalLeftValue: R.qnorm(normalPercent, state.mean, state.std),
-        samplingLeftValue: R.qnorm(samplingPercent, state.mean, state.stdErr),
-        tLeftValue: R.qt(tValuePercent, state.samplingNumber - 1),
-      })
-    }
 
     function calc_normal_distribution() {
       var data = [];
@@ -188,9 +223,6 @@ export default function () {
     var samples = get_samples();
     var avg = samples.reduce((a, c) => a + c.x, 0) / samples.length;
     var params = Stat.calcParams(samplingPoint.current.slice(0, state.samplingNumber));
-    const tValue = params.stderr>0?(params.mean - state.mean) / params.stderr:0;
-    setState({ ...state, tValue });
-    setSampleValues(params);
 
     var alpha = 0.6 / state.samplingNumber;
     if (alpha < 0.05) alpha = 0.05;
@@ -336,7 +368,7 @@ export default function () {
   }
 
   return (
-    <>
+    <div className="container mx-auto">
       <canvas ref={chartCanvas} width="400" height="200"></canvas>
       <div className="inline-block w-1/3">
         <input
@@ -394,11 +426,11 @@ export default function () {
           checked={state.enableMeanZero}
           onChange={(e) => {
             if (e.target.checked) {
-              setLeft(-10);
-              setRight(10);
+              setLeft(-5);
+              setRight(5);
             } else {
-              setLeft(30);
-              setRight(50);
+              setLeft(35);
+              setRight(45);
             }
             setState({
               ...state,
@@ -406,7 +438,7 @@ export default function () {
             })
           }}
         />
-        <div className="inline-block">:0平均化</div>
+        <div className="inline-block">:0基準</div>
       </div>
       <div>
         <div className="inline-block w-1/3">母平均:{state.mean}</div>
@@ -494,21 +526,6 @@ export default function () {
           />
           <div className="inline-block">:両側表示</div>
         </div>
-        <div className="inline-block w-1/3">
-          <input
-            type="checkbox"
-            checked={percentFix}
-            onChange={(e) => {
-              if (e.target.checked) {
-                setNormalPercent(Stat.round(R.pnorm(state.normalLeftValue, state.mean, state.std)));
-                setSamplingPercent(Stat.round(R.pnorm(state.samplingLeftValue, state.mean, state.stdErr)));
-                setTValuePercent(Stat.round(R.pt(state.tLeftValue, state.samplingNumber-1)));
-              }
-              setPercentFix(e.target.checked)
-            }}
-          />
-          <div className="inline-block">:パーセント固定</div>
-        </div>
       </div>
 
       <div>
@@ -537,36 +554,6 @@ export default function () {
               })
             }}
           />
-          <input type="button" value="0.5%点" onClick={() => {
-            setState({
-              ...state,
-              normalLeftValue: R.qnorm(0.005, state.mean, state.std),
-            })
-          }} />
-          <input type="button" value="1.0%点" onClick={() => {
-            setState({
-              ...state,
-              normalLeftValue: R.qnorm(0.001, state.mean, state.std),
-            })
-          }} />
-          <input type="button" value="2.5%点" onClick={() => {
-            setState({
-              ...state,
-              normalLeftValue: R.qnorm(0.025, state.mean, state.std),
-            })
-          }} />
-          <input type="button" value="5%点" onClick={() => {
-            setState({
-              ...state,
-              normalLeftValue: R.qnorm(0.05, state.mean, state.std),
-            })
-          }} />
-          <input type="button" value="25%点" onClick={() => {
-            setState({
-              ...state,
-              normalLeftValue: R.qnorm(0.25, state.mean, state.std),
-            })
-          }} />
         </div>
       </div>
 
@@ -596,36 +583,6 @@ export default function () {
               })
             }}
           />
-          <input type="button" value="0.5%点" onClick={() => {
-            setState({
-              ...state,
-              samplingLeftValue: R.qnorm(0.005, state.mean, state.stdErr),
-            })
-          }} />
-          <input type="button" value="1.0%点" onClick={() => {
-            setState({
-              ...state,
-              samplingLeftValue: R.qnorm(0.001, state.mean, state.stdErr),
-            })
-          }} />
-          <input type="button" value="2.5%点" onClick={() => {
-            setState({
-              ...state,
-              samplingLeftValue: R.qnorm(0.025, state.mean, state.stdErr),
-            })
-          }} />
-          <input type="button" value="5%点" onClick={() => {
-            setState({
-              ...state,
-              samplingLeftValue: R.qnorm(0.05, state.mean, state.stdErr),
-            })
-          }} />
-          <input type="button" value="25%点" onClick={() => {
-             setState({
-              ...state,
-              samplingLeftValue: R.qnorm(0.25, state.mean, state.stdErr),
-            })
-         }} />
         </div>
       </div>
 
@@ -655,38 +612,73 @@ export default function () {
               })
             }}
           />
+        </div>
+      </div>
+
+      <div>
+        <div className="inline-block w-1/3">
+          <input
+            type="checkbox"
+            checked={percentFix}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setNormalPercent(Stat.round(R.pnorm(state.normalLeftValue, state.mean, state.std)));
+                setSamplingPercent(Stat.round(R.pnorm(state.samplingLeftValue, state.mean, state.stdErr)));
+                setTValuePercent(Stat.round(R.pt(state.tLeftValue, state.samplingNumber-1)));
+              }
+              setPercentFix(e.target.checked)
+            }}
+          />
+          <div className="inline-block">:パーセント固定</div>
+        </div>
+        <div className="inline-block">
           <input type="button" value="0.5%点" onClick={() => {
+            setPercent(0.005);
             setState({
               ...state,
+              normalLeftValue: R.qnorm(0.005, state.mean, state.std),
+              samplingLeftValue: R.qnorm(0.005, state.mean, state.stdErr),
               tLeftValue: R.qt(0.005, state.samplingNumber - 1),
             })
           }} />
           <input type="button" value="1.0%点" onClick={() => {
+            setPercent(0.01);
             setState({
               ...state,
-              tLeftValue: R.qt(0.001, state.samplingNumber - 1),
+              normalLeftValue: R.qnorm(0.01, state.mean, state.std),
+              samplingLeftValue: R.qnorm(0.01, state.mean, state.stdErr),
+              tLeftValue: R.qt(0.01, state.samplingNumber - 1),
             })
           }} />
           <input type="button" value="2.5%点" onClick={() => {
+            setPercent(0.025);
             setState({
               ...state,
+              normalLeftValue: R.qnorm(0.025, state.mean, state.std),
+              samplingLeftValue: R.qnorm(0.025, state.mean, state.stdErr),
               tLeftValue: R.qt(0.025, state.samplingNumber - 1),
             })
           }} />
           <input type="button" value="5%点" onClick={() => {
+            setPercent(0.05);
             setState({
               ...state,
+              normalLeftValue: R.qnorm(0.05, state.mean, state.std),
+              samplingLeftValue: R.qnorm(0.05, state.mean, state.stdErr),
               tLeftValue: R.qt(0.05, state.samplingNumber - 1),
             })
           }} />
           <input type="button" value="25%点" onClick={() => {
+            setPercent(0.25);
             setState({
               ...state,
+              normalLeftValue: R.qnorm(0.25, state.mean, state.std),
+              samplingLeftValue: R.qnorm(0.25, state.mean, state.stdErr),
               tLeftValue: R.qt(0.25, state.samplingNumber - 1),
             })
           }} />
         </div>
       </div>
-    </>
+    </div>
   )
 }
