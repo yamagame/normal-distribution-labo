@@ -1,0 +1,22 @@
+{
+  "files": {
+    "main.css": "/normal-distribution-labo/static/css/main.3a23fd91.chunk.css",
+    "main.js": "/normal-distribution-labo/static/js/main.07b91a00.chunk.js",
+    "main.js.map": "/normal-distribution-labo/static/js/main.07b91a00.chunk.js.map",
+    "runtime-main.js": "/normal-distribution-labo/static/js/runtime-main.c71c6b40.js",
+    "runtime-main.js.map": "/normal-distribution-labo/static/js/runtime-main.c71c6b40.js.map",
+    "static/js/2.a58d08ca.chunk.js": "/normal-distribution-labo/static/js/2.a58d08ca.chunk.js",
+    "static/js/2.a58d08ca.chunk.js.map": "/normal-distribution-labo/static/js/2.a58d08ca.chunk.js.map",
+    "index.html": "/normal-distribution-labo/index.html",
+    "precache-manifest.525b6fe393a402471c8a545c228ae706.js": "/normal-distribution-labo/precache-manifest.525b6fe393a402471c8a545c228ae706.js",
+    "service-worker.js": "/normal-distribution-labo/service-worker.js",
+    "static/css/main.3a23fd91.chunk.css.map": "/normal-distribution-labo/static/css/main.3a23fd91.chunk.css.map",
+    "static/js/2.a58d08ca.chunk.js.LICENSE.txt": "/normal-distribution-labo/static/js/2.a58d08ca.chunk.js.LICENSE.txt"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.c71c6b40.js",
+    "static/js/2.a58d08ca.chunk.js",
+    "static/css/main.3a23fd91.chunk.css",
+    "static/js/main.07b91a00.chunk.js"
+  ]
+}

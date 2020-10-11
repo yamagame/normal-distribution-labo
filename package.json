@@ -14,7 +14,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "PUBLIC_URL=/normal-distribution-labo react-scripts build && ./copy-to-docs.sh",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
