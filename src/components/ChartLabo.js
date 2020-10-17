@@ -763,7 +763,6 @@ export default function () {
               min={-1}
               max={ 1}
               step="0.001"
-              disabled={percentFix}
               onChange={(e) => {
                 setState({
                   ...state,
